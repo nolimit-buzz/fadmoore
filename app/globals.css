@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 180 75% 97%;
+    --foreground: 254 40% 30%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 254 40% 30%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 254 40% 30%;
+    
+    --primary: 260 53% 40%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 195 92% 95%;
+    --secondary-foreground: 260 53% 40%;
+    
+    --muted: 180 75% 95%;
+    --muted-foreground: 257 18% 40%;
+    
+    --accent: 195 92% 95%;
+    --accent-foreground: 260 53% 40%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 180 75% 90%;
+    --input: 180 75% 90%;
+    --ring: 260 53% 40%;
+    
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    font-family: var(--font-outfit);
+    @apply bg-background text-foreground;
+  }
+}
+
+.dropzone {
+  position: relative;
+  border: 2px dashed hsl(var(--primary) / 0.3);
+  border-radius: var(--radius);
+  transition: all 0.2s ease-in-out;
+}
+
+.dropzone.active {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+.file-upload-animation {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+}
+
+.highlight-animation {
+  animation: highlight 2s ease-in-out;
+}
+
+@keyframes highlight {
+  0% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: hsl(var(--primary) / 0.1);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+circle {
+  transition: stroke-dashoffset 0.3s ease;
+  transform-origin: center;
+}
