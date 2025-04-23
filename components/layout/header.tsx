@@ -10,22 +10,6 @@ export default function Header() {
           <DropletIcon size={28} className="text-primary" />
           <span className="text-xl font-bold text-primary">Fadmoore</span>
         </Link>
-        
-        {/* <nav className="hidden md:flex items-center space-x-8">
-          <Link href="/" className="text-foreground hover:text-primary transition-colors">
-            Home
-          </Link>
-          <Link href="#" className="text-foreground hover:text-primary transition-colors">
-            Features
-          </Link>
-          <Link href="#" className="text-foreground hover:text-primary transition-colors">
-            Pricing
-          </Link>
-          <Link href="#" className="text-foreground hover:text-primary transition-colors">
-            FAQ
-          </Link>
-        </nav>
-         */}
         <div className="flex items-center space-x-4">
           <Link href="#" className="text-foreground hover:text-primary transition-colors hidden md:block">
             Sign In
