@@ -42,33 +42,9 @@ export async function POST(request: NextRequest) {
       // Create an assistant
       const assistant = await openai.beta.assistants.create({
         name: "Business Document Analyzer",
-        instructions: `# Contract Information Extraction Request
-
-Please analyze the attached contract and extract the following key business information into a table format:
-
-## Core Details
-- Customer/client name
-- Vendor/provider name
-- Contract effective date
-- Contract end date
-- Total contract value
-- Payment terms and schedule
-
-## Financial Information
-- Standard billing rates
-- Premium/overtime rates
-- Volume discounts
-- Payment terms (Net 30, etc.)
-- Invoicing requirements
-
-## Legal & Operational Terms
-- Renewal conditions (auto-renewal, notice periods)
-- Termination provisions
-- Service Level Agreements (SLAs) with metrics
-- Performance standards
-- Contact information (AP, technical, management)
-
-Skip any information that is not specified in the contract.`,
+        instructions: `
+Review the attached contract and pull out the relevant contract information into a table format (organized in 2 columns: category and details) including things like customer name, contract start and end date, contract amount, standard billing rates, standard billing rates, AP contract information, renewal terms, service level agreements etc
+`,
         model: "gpt-4-1106-preview",
         tools: [{ type: "code_interpreter" }]
       });
