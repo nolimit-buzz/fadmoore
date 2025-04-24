@@ -53,7 +53,7 @@ export default function UploadSection() {
           // Slower final progress (70-95%)
           return prev + Math.random() * 2;
         });
-      }, 1000); // Increased interval to 1 second
+      }, 1000);
       
       const formData = new FormData();
       formData.append('file', file.file);
@@ -74,7 +74,7 @@ export default function UploadSection() {
       // Clear the progress interval
       clearInterval(progressInterval);
       
-      if (data.resultUrl && data.excelData && data.filename) {
+      if (data.excelData && data.filename) {
         setResultUrl(data.resultUrl);
         setExcelData(data.excelData);
         setFilename(data.filename);
