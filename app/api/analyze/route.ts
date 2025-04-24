@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as XLSX from "xlsx";
-import { writeFile } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import fs from "fs";
-import { promises as fsPromises } from "fs";
-import { mkdir } from "fs/promises";
-
-// Remove edge runtime to use Node.js runtime
-// export const runtime = 'edge';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
 });
+
+// Core instructions for file analysis
+const ANALYSIS_PROMPT = `
+Please read the uploaded document and extract ALL relevant business contract information.
+
+Return the result as a Markdown table with:
+- Column 1: Field Name
+- Column 2: Field Value
+
+Rules:
+1. Each field must be on its own row
+2. Do not combine multiple values in one cell
+3. If a field has multiple values, create a separate row for each value
+4. Keep field names clear and descriptive
+5. Format dates as MM/DD/YYYY
+6. Include currency symbols for monetary values
+
+Example format:
+| Field Name | Field Value |
+|------------|-------------|
+| Customer Name | Acme Corp |
+| Contract Start Date | 01/01/2024 |
+| Service Description | Cloud Hosting |
+| Payment Terms | Net 30 |
+| Billing Rate | $100/hour |
+
+Only return the Markdown table. Do not summarize or explain anything.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,210 +47,111 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    try {
-      // Upload file to OpenAI
-      const file = await openai.files.create({
-        file: uploadedFile,
-        purpose: "assistants",
-      });
-
-      // Wait for file to be processed
-      let fileStatus = await openai.files.retrieve(file.id);
-      while (fileStatus.status !== 'processed') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        fileStatus = await openai.files.retrieve(file.id);
-      }
-
-      // Create an assistant
-      const assistant = await openai.beta.assistants.create({
-        name: "Business Document Analyzer",
-        instructions: `
-Extract all relevant information from the attached document into a simple two-column table:
-- Column 1: Information Type (e.g., "Customer Name,Contract Start Date", "Service Description", "Payment Terms,  contract start and end date, contract amount, standard billing rates, standard billing rates, AP contract information, renewal terms, service level agreements etc")
-- Column 2: Extracted Detail (the actual value or description)
-
-Guidelines:
-1. Extract all important information you find in the document
-2. Use clear, descriptive names for the Information Type
-3. Keep the details concise but complete
-4. Format dates as MM/DD/YYYY
-5. Include currency symbols for monetary values
-6. Use bullet points for multiple related items
-7. Maintain consistent spacing
-
-Focus on extracting factual information rather than interpreting it.`,
-        model: "gpt-4-1106-preview",
-        tools: [{ type: "code_interpreter" }]
-      });
-
-      // Create a thread
-      const thread = await openai.beta.threads.create();
-
-      // Add a message to the thread
-      await openai.beta.threads.messages.create(thread.id, {
-        role: "user",
-        content: userPrompt || "Please analyze this business document and provide insights.",
-        attachments: [{
-          file_id: file.id,
-          tools: [{ type: "code_interpreter" }]
-        }]
-      });
-
-      // Run the assistant
-      const run = await openai.beta.threads.runs.create(thread.id, {
-        assistant_id: assistant.id
-      });
-
-      // Wait for the run to complete
-      let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      while (runStatus.status !== 'completed') {
-        if (runStatus.status === 'failed') {
-          throw new Error('Assistant run failed: ' + runStatus.last_error?.message);
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-      }
-
-      // Get the messages
-      const messages = await openai.beta.threads.messages.list(thread.id);
-      const lastMessage = messages.data[0];
-      const analysisText = typeof lastMessage.content[0] === 'object' && 'text' in lastMessage.content[0]
-        ? lastMessage.content[0].text.value
-        : '';
-
-      // Clean up
-      await openai.files.del(file.id);
-      await openai.beta.assistants.del(assistant.id);
-
-      // Generate spreadsheet
-      const workbook = XLSX.utils.book_new();
-      
-      // Parse the response and structure it for Excel
-      const rows = parseAnalysisIntoRows(analysisText);
-      
-      // Create worksheet with the parsed data
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Contract Analysis');
-      
-      // Generate Excel file as base64
-      const base64Data = XLSX.write(workbook, {
-        type: "base64",
-        bookType: "xlsx"
-      });
-      
-      // Generate a unique filename
-      const timestamp = new Date().getTime();
-      const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${timestamp}.xlsx`;
-      
-      // Return the response with all required fields
-      return NextResponse.json({ 
-        resultUrl: null, // Since we're not storing files, this can be null
-        excelData: base64Data,
-        filename: filename
-      });
-    } catch (error) {
-      console.error('Error processing file:', error);
+    // Check file size (Netlify has a 10MB limit for serverless functions)
+    if (uploadedFile.size > 10 * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'Failed to process file' },
-        { status: 500 }
+        { error: "File size exceeds 10MB limit" },
+        { status: 413 }
       );
     }
+
+    // Convert file to base64
+    const arrayBuffer = await uploadedFile.arrayBuffer();
+    const base64File = Buffer.from(arrayBuffer).toString('base64');
+
+    // Create completion request
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [
+        {
+          role: "system",
+          content: ANALYSIS_PROMPT
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: ANALYSIS_PROMPT
+            },
+            {
+              type: "file",
+              file: {
+                filename: uploadedFile.name,
+                file_data: `data:application/pdf;base64,${base64File}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 2000,
+      temperature: 0
+    });
+
+    const analysisText = completion.choices[0]?.message?.content || "";
+    console.log(analysisText);
+    // Parse Markdown table into Excel rows
+    const rows = parseMarkdownTableToRows(analysisText);
+
+    // Create workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    // Set column widths
+    const wscols = [
+      { wch: 30 }, // Field Name column
+      { wch: 50 }  // Field Value column
+    ];
+    worksheet['!cols'] = wscols;
+
+    // Add worksheet to workbook with proper formatting
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Contract Analysis");
+
+    // Convert to base64
+    const base64Data = XLSX.write(workbook, {
+      type: "base64",
+      bookType: "xlsx",
+      cellStyles: true,
+      cellDates: true,
+      bookSST: true
+    });
+
+    // Return response
+    const timestamp = new Date().getTime();
+    const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${timestamp}.xlsx`;
+
+    return NextResponse.json({
+      resultUrl: null,
+      excelData: base64Data,
+      filename,
+    });
   } catch (error) {
-    console.error("Error processing file:", error);
-    return NextResponse.json(
-      { error: "Failed to process file" },
-      { status: 500 }
-    );
+    console.error("Error:", error);
+    return NextResponse.json({ error: "Failed to process file" }, { status: 500 });
   }
 }
 
-// Helper function to parse the analysis text into rows for Excel
-function parseAnalysisIntoRows(analysisText: string) {
-  try {
-    // First attempt to parse if it's already in JSON format
-    try {
-      const jsonData = JSON.parse(analysisText);
-      if (Array.isArray(jsonData)) {
-        return jsonData;
-      }
-      // If it's a nested object, convert to array of row objects
-      return Object.entries(jsonData).map(([key, value]) => ({
-        Category: key,
-        Value: typeof value === "object" ? JSON.stringify(value) : value,
-      }));
-    } catch (e) {
-      // If not valid JSON, split by lines and attempt to create rows
-      const lines = analysisText.split("\n").filter((line) => line.trim());
-
-      // Check if we have clear section headings
-      const sections: Record<string, string[]> = {};
-      let currentSection = "General";
-      sections[currentSection] = [];
-
-      for (const line of lines) {
-        if (
-          line.startsWith("#") ||
-          line.startsWith("**") ||
-          /^[A-Z][A-Za-z\s]+:$/.test(line)
-        ) {
-          // This looks like a heading
-          currentSection = line.replace(/[#*:]/g, "").trim();
-          sections[currentSection] = [];
-        } else if (line.includes(":")) {
-          sections[currentSection].push(line);
-        } else {
-          sections[currentSection].push(line);
-        }
-      }
-
-      // Convert sections to rows
-      const rows: Record<string, string>[] = [];
-
-      // Add a summary row
-      rows.push({
-        Category: "Document Analysis Summary",
-        Details: "Analysis of business agreement document",
-      });
-
-      // Process each section
-      Object.entries(sections).forEach(([section, lines]) => {
-        // Add a section header row
-        rows.push({
-          Category: section,
-          Details: "",
-        });
-
-        // Process lines in this section
-        lines.forEach((line) => {
-          const parts = line.split(":");
-          if (parts.length > 1) {
-            const key = parts[0].trim();
-            const value = parts.slice(1).join(":").trim();
-            rows.push({
-              Category: key,
-              Details: value,
-            });
-          } else {
-            // Just a text line, add as is
-            rows.push({
-              Category: "",
-              Details: line.trim(),
-            });
-          }
-        });
-      });
-
-      return rows;
-    }
-  } catch (error) {
-    // Fallback - create a simple one-row response
-    return [
-      {
-        Category: "Analysis",
-        Details: analysisText,
-      },
-    ];
+// Helper to convert Markdown 2-row table into JSON rows for Excel
+function parseMarkdownTableToRows(markdown: string) {
+  const lines = markdown.split("\n").filter(l => l.trim() && l.includes("|"));
+  if (lines.length < 3) {
+    return [{ "Field Name": "Raw Output", "Field Value": markdown }];
   }
+
+  // Skip the header separator line (the line with dashes)
+  const dataLines = lines.filter(line => !line.includes("---"));
+  
+  // Process each data line
+  const rows = dataLines.map(line => {
+    const cells = line.split("|").map(cell => cell.trim()).filter(Boolean);
+    if (cells.length >= 2) {
+      return {
+        "Field Name": cells[0],
+        "Field Value": cells[1]
+      };
+    }
+    return null;
+  }).filter(Boolean);
+
+  return rows;
 }
