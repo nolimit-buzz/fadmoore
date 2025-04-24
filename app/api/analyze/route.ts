@@ -102,35 +102,26 @@ Focus on extracting factual information rather than interpreting it.`,
 
       // Generate spreadsheet
       const workbook = XLSX.utils.book_new();
-
+      
       // Parse the response and structure it for Excel
       const rows = parseAnalysisIntoRows(analysisText);
-
+      
       // Create worksheet with the parsed data
       const worksheet = XLSX.utils.json_to_sheet(rows);
-
+      
       // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Client Insights');
-
-      // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-      // Generate a unique filename
-      const timestamp = new Date().getTime();
-      const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, '')}_analysis_${timestamp}.xlsx`;
-      const filePath = path.join(process.cwd(), 'public', 'downloads', filename);
-
-      // Save the file
-      await writeFile(filePath, excelBuffer);
-
-      // Also generate base64 for immediate download
-      const base64Data = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
-
-      // Return both the URL and base64 data
-      return NextResponse.json({
-        resultUrl: `${process.env.NEXT_PUBLIC_BASE_URL || ''}/downloads/${filename}`,
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Contract Analysis');
+      
+      // Generate Excel file as base64
+      const base64Data = XLSX.write(workbook, {
+        type: "base64",
+        bookType: "xlsx"
+      });
+      
+      // Return the base64 data
+      return NextResponse.json({ 
         excelData: base64Data,
-        filename: filename
+        filename: `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${new Date().getTime()}.xlsx`
       });
     } catch (error) {
       console.error('Error processing file:', error);
