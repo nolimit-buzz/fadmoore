@@ -9,14 +9,14 @@ export default function Footer() {
           <div className="mb-6 md:mb-0">
             <Link href="/" className="flex items-center space-x-2">
               <DropletIcon size={24} className="text-primary" />
-              <span className="text-xl font-bold text-primary">Fadmoore</span>
+              <span className="text-xl font-bold text-primary">fadmoor</span>
             </Link>
             <p className="mt-2 text-sm text-muted-foreground max-w-md ">
               Analyze business agreements and get valuable insights about client relationships and retention likelihood.
             </p>
           </div>
           <p className="self-end mt-2 text-sm text-muted-foreground max-w-md ">
-            © 2025 Fadmoore. All rights reserved.
+            © 2025 fadmoor. All rights reserved.
           </p>
 
           {/*           

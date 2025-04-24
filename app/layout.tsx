@@ -11,7 +11,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'Fadmoore - Business Agreement Analyzer',
+  title: 'fadmoor - Business Agreement Analyzer',
   description: 'Analyze business agreements and get valuable insights about client relationships',
 };
 
