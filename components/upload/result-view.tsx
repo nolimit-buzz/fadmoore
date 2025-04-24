@@ -54,7 +54,6 @@ export default function ResultView({ resultUrl, excelData, filename, onReset }: 
               onClick={handleDownload}
               size="lg"
               className="w-full flex items-center justify-center"
-              disabled={!excelData || !filename}
             >
               <Download className="mr-2 h-5 w-5" />
               Download XLSX Report

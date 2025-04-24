@@ -102,7 +102,7 @@ export default function UploadSection() {
   return (
     <Card className="bg-card shadow-lg border-border overflow-hidden">
       <CardContent className="p-6 md:p-8">
-        {processingState === 'completed' && resultUrl ? (
+        {processingState === 'completed' ? (
           <ResultView 
             resultUrl={resultUrl} 
             excelData={excelData}
