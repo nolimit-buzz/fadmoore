@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await uploadedFile.arrayBuffer();
     const blob = new Blob([arrayBuffer]);
 
-    // Save file temporarily
-    const tempDir = path.join(process.cwd(), "tmp");
+    // Save file temporarily in /tmp directory
+    const tempDir = "/tmp";
     const tempFilePath = path.join(tempDir, uploadedFile.name);
 
     // Create tmp directory if it doesn't exist
