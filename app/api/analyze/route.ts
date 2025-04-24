@@ -43,8 +43,20 @@ export async function POST(request: NextRequest) {
       const assistant = await openai.beta.assistants.create({
         name: "Business Document Analyzer",
         instructions: `
-Review the attached contract and pull out the relevant contract information into a table format (organized in 2 columns: category and details) including things like customer name, contract start and end date, contract amount, standard billing rates, standard billing rates, AP contract information, renewal terms, service level agreements etc
-`,
+Extract all relevant information from the attached document into a simple two-column table:
+- Column 1: Information Type (e.g., "Customer Name,Contract Start Date", "Service Description", "Payment Terms,  contract start and end date, contract amount, standard billing rates, standard billing rates, AP contract information, renewal terms, service level agreements etc")
+- Column 2: Extracted Detail (the actual value or description)
+
+Guidelines:
+1. Extract all important information you find in the document
+2. Use clear, descriptive names for the Information Type
+3. Keep the details concise but complete
+4. Format dates as MM/DD/YYYY
+5. Include currency symbols for monetary values
+6. Use bullet points for multiple related items
+7. Maintain consistent spacing
+
+Focus on extracting factual information rather than interpreting it.`,
         model: "gpt-4-1106-preview",
         tools: [{ type: "code_interpreter" }]
       });
@@ -80,42 +92,42 @@ Review the attached contract and pull out the relevant contract information into
       // Get the messages
       const messages = await openai.beta.threads.messages.list(thread.id);
       const lastMessage = messages.data[0];
-      const analysisText = typeof lastMessage.content[0] === 'object' && 'text' in lastMessage.content[0] 
-        ? lastMessage.content[0].text.value 
+      const analysisText = typeof lastMessage.content[0] === 'object' && 'text' in lastMessage.content[0]
+        ? lastMessage.content[0].text.value
         : '';
 
       // Clean up
       await openai.files.del(file.id);
       await openai.beta.assistants.del(assistant.id);
-      
+
       // Generate spreadsheet
       const workbook = XLSX.utils.book_new();
-      
+
       // Parse the response and structure it for Excel
       const rows = parseAnalysisIntoRows(analysisText);
-      
+
       // Create worksheet with the parsed data
       const worksheet = XLSX.utils.json_to_sheet(rows);
-      
+
       // Add worksheet to workbook
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Client Insights');
-      
+
       // Generate Excel file
       const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-      
+
       // Generate a unique filename
       const timestamp = new Date().getTime();
       const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, '')}_analysis_${timestamp}.xlsx`;
       const filePath = path.join(process.cwd(), 'public', 'downloads', filename);
-      
+
       // Save the file
       await writeFile(filePath, excelBuffer);
-      
+
       // Also generate base64 for immediate download
       const base64Data = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
-      
+
       // Return both the URL and base64 data
-      return NextResponse.json({ 
+      return NextResponse.json({
         resultUrl: `${process.env.NEXT_PUBLIC_BASE_URL || ''}/downloads/${filename}`,
         excelData: base64Data,
         filename: filename
