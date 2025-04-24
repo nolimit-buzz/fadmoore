@@ -25,25 +25,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Convert File to Buffer and create a Blob
-    const arrayBuffer = await uploadedFile.arrayBuffer();
-    const blob = new Blob([arrayBuffer]);
-
-    // Save file temporarily in /tmp directory
-    const tempDir = "/tmp";
-    const tempFilePath = path.join(tempDir, uploadedFile.name);
-
-    // Create tmp directory if it doesn't exist
-    if (!fs.existsSync(tempDir)) {
-      await mkdir(tempDir, { recursive: true });
-    }
-
-    await fsPromises.writeFile(tempFilePath, new Uint8Array(arrayBuffer));
-
     try {
-      // Upload file to OpenAI
+      // Upload file to OpenAI directly
       const file = await openai.files.create({
-        file: fs.createReadStream(tempFilePath),
+        file: uploadedFile,
         purpose: "assistants",
       });
 
@@ -198,47 +183,23 @@ Please present this information in a clear, tabular format with each category cl
       // Add worksheet to workbook
       XLSX.utils.book_append_sheet(workbook, worksheet, "Client Insights");
 
-      // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, {
-        type: "buffer",
-        bookType: "xlsx",
-      });
-
-      // Generate a unique filename
-      const timestamp = new Date().getTime();
-      const filename = `${uploadedFile.name.replace(
-        /\.[^/.]+$/,
-        ""
-      )}_analysis_${timestamp}.xlsx`;
-      const filePath = path.join(
-        process.cwd(),
-        "public",
-        "downloads",
-        filename
-      );
-
-      // Save the file
-      await writeFile(filePath, excelBuffer);
-
-      // Also generate base64 for immediate download
+      // Generate Excel file as base64
       const base64Data = XLSX.write(workbook, {
         type: "base64",
         bookType: "xlsx",
       });
 
-      // Return both the URL and base64 data
+      // Return the base64 data
       return NextResponse.json({
-        resultUrl: `${
-          process.env.NEXT_PUBLIC_BASE_URL || ""
-        }/downloads/${filename}`,
         excelData: base64Data,
-        filename: filename,
+        filename: `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${new Date().getTime()}.xlsx`,
       });
-    } finally {
-      // Ensure temporary file is cleaned up even if there's an error
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
+    } catch (error) {
+      console.error("Error processing file:", error);
+      return NextResponse.json(
+        { error: "Failed to process file" },
+        { status: 500 }
+      );
     }
   } catch (error) {
     console.error("Error processing file:", error);
