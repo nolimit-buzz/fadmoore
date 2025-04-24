@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Upload file to OpenAI directly
+      // Upload file to OpenAI
       const file = await openai.files.create({
         file: uploadedFile,
         purpose: "assistants",
@@ -34,91 +34,43 @@ export async function POST(request: NextRequest) {
 
       // Wait for file to be processed
       let fileStatus = await openai.files.retrieve(file.id);
-      while (fileStatus.status !== "processed") {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      while (fileStatus.status !== 'processed') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         fileStatus = await openai.files.retrieve(file.id);
       }
 
       // Create an assistant
       const assistant = await openai.beta.assistants.create({
         name: "Business Document Analyzer",
-        instructions: `
+        instructions: `# Contract Information Extraction Request
 
-I'll reword and expand the prompt to create a more detailed, structured request for contract information extraction:
+Please analyze the attached contract and extract the following key business information into a table format:
 
-# Comprehensive Contract Analysis Request
-
-Please conduct a thorough analysis of the attached contract document and extract the following key business information into a well-organized table format:
-
-## Entity Information
-- Customer/Client legal name (including any DBA names)
-- Vendor/Service Provider legal name
-- All named parties to the agreement
-- Primary business addresses for all parties
-- Tax identification numbers (if present)
-
-## Contract Timeline Details
+## Core Details
+- Customer/client name
+- Vendor/provider name
 - Contract effective date
-- Contract execution date (date of signing)
-- Contract term/duration (in months/years)
-- Contract expiration/end date
-- Notice period required for termination
-- Early termination conditions and penalties
+- Contract end date
+- Total contract value
+- Payment terms and schedule
 
-## Financial Terms
-- Total contract value (TCV)
-- Annual contract value (ACV) if applicable
-- Payment schedule (monthly, quarterly, annual, milestone-based)
-- Currency denomination
-- Invoicing requirements and timeline
-- Payment terms (Net 30, Net 60, etc.)
-- Late payment penalties or interest rates
-- Volume discounts or sliding scales (if applicable)
+## Financial Information
+- Standard billing rates
+- Premium/overtime rates
+- Volume discounts
+- Payment terms (Net 30, etc.)
+- Invoicing requirements
 
-## Service/Product Specifications
-- Detailed scope of services/products
-- Service level agreements (SLAs) with specific metrics
-- Response time commitments
-- Uptime guarantees (for technology services)
-- Performance metrics and KPIs
-- Quality assurance standards
+## Legal & Operational Terms
+- Renewal conditions (auto-renewal, notice periods)
+- Termination provisions
+- Service Level Agreements (SLAs) with metrics
+- Performance standards
+- Contact information (AP, technical, management)
 
-## Rate Information
-- Standard hourly/daily rates by resource type
-- Overtime rates and conditions
-- Weekend/holiday premium rates
-- Rate escalation clauses for multi-year contracts
-
-## Renewal Terms
-- Auto-renewal provisions (Yes/No)
-- Renewal notification period requirements
-- Length of renewal term(s)
-- Conditions for renewal
-- Rate changes upon renewal
-
-## Points of Contact
-- Primary contract administrator contact information
-- Accounts payable (AP) contact information
-- Technical/operational contact information
-- Escalation contacts and process
-
-## Liability and Compliance
-- Insurance requirements and coverage amounts
-- Limitation of liability caps
-- Intellectual property ownership provisions
-- Data security and privacy requirements
-- Compliance with specific regulations/standards
-
-## Special Provisions
-- Exclusivity clauses
-- Non-compete provisions
-- Non-solicitation clauses
-- Change control procedures
-- Force majeure terms
-
-Please present this information in a clear, tabular format with each category clearly labeled. Include section/page references from the original contract document for each data point to facilitate verification. If any requested information is not explicitly stated in the contract, please note it as "Not Specified" rather than leaving it blank.`,
+Skip any information that is not specified in the contract.`,
         model: "gpt-4-1106-preview",
-        tools: [{ type: "code_interpreter" }],
+        tools: [{ type: "code_interpreter" }]
       });
 
       // Create a thread
@@ -127,77 +79,75 @@ Please present this information in a clear, tabular format with each category cl
       // Add a message to the thread
       await openai.beta.threads.messages.create(thread.id, {
         role: "user",
-        content:
-          userPrompt ||
-          "Please analyze this business document and provide insights.",
-        attachments: [
-          {
-            file_id: file.id,
-            tools: [{ type: "code_interpreter" }],
-          },
-        ],
+        content: userPrompt || "Please analyze this business document and provide insights.",
+        attachments: [{
+          file_id: file.id,
+          tools: [{ type: "code_interpreter" }]
+        }]
       });
 
       // Run the assistant
       const run = await openai.beta.threads.runs.create(thread.id, {
-        assistant_id: assistant.id,
+        assistant_id: assistant.id
       });
 
       // Wait for the run to complete
-      let runStatus = await openai.beta.threads.runs.retrieve(
-        thread.id,
-        run.id
-      );
-      while (runStatus.status !== "completed") {
-        if (runStatus.status === "failed") {
-          throw new Error(
-            "Assistant run failed: " + runStatus.last_error?.message
-          );
+      let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      while (runStatus.status !== 'completed') {
+        if (runStatus.status === 'failed') {
+          throw new Error('Assistant run failed: ' + runStatus.last_error?.message);
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       }
 
       // Get the messages
       const messages = await openai.beta.threads.messages.list(thread.id);
       const lastMessage = messages.data[0];
-      const analysisText =
-        typeof lastMessage.content[0] === "object" &&
-        "text" in lastMessage.content[0]
-          ? lastMessage.content[0].text.value
-          : "";
+      const analysisText = typeof lastMessage.content[0] === 'object' && 'text' in lastMessage.content[0] 
+        ? lastMessage.content[0].text.value 
+        : '';
 
       // Clean up
       await openai.files.del(file.id);
       await openai.beta.assistants.del(assistant.id);
-
+      
       // Generate spreadsheet
       const workbook = XLSX.utils.book_new();
-
+      
       // Parse the response and structure it for Excel
       const rows = parseAnalysisIntoRows(analysisText);
-
+      
       // Create worksheet with the parsed data
       const worksheet = XLSX.utils.json_to_sheet(rows);
-
+      
       // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Client Insights");
-
-      // Generate Excel file as base64
-      const base64Data = XLSX.write(workbook, {
-        type: "base64",
-        bookType: "xlsx",
-      });
-
-      // Return the base64 data
-      return NextResponse.json({
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Client Insights');
+      
+      // Generate Excel file
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      // Generate a unique filename
+      const timestamp = new Date().getTime();
+      const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, '')}_analysis_${timestamp}.xlsx`;
+      const filePath = path.join(process.cwd(), 'public', 'downloads', filename);
+      
+      // Save the file
+      await writeFile(filePath, excelBuffer);
+      
+      // Also generate base64 for immediate download
+      const base64Data = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
+      
+      // Return both the URL and base64 data
+      return NextResponse.json({ 
+        resultUrl: `${process.env.NEXT_PUBLIC_BASE_URL || ''}/downloads/${filename}`,
         excelData: base64Data,
-        filename: `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${new Date().getTime()}.xlsx`,
+        filename: filename
       });
     } catch (error) {
-      console.error("Error processing file:", error);
+      console.error('Error processing file:', error);
       return NextResponse.json(
-        { error: "Failed to process file" },
+        { error: 'Failed to process file' },
         { status: 500 }
       );
     }
