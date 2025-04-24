@@ -118,10 +118,15 @@ Focus on extracting factual information rather than interpreting it.`,
         bookType: "xlsx"
       });
       
-      // Return the base64 data
+      // Generate a unique filename
+      const timestamp = new Date().getTime();
+      const filename = `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${timestamp}.xlsx`;
+      
+      // Return the response with all required fields
       return NextResponse.json({ 
+        resultUrl: null, // Since we're not storing files, this can be null
         excelData: base64Data,
-        filename: `${uploadedFile.name.replace(/\.[^/.]+$/, "")}_analysis_${new Date().getTime()}.xlsx`
+        filename: filename
       });
     } catch (error) {
       console.error('Error processing file:', error);

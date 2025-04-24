@@ -18,12 +18,16 @@ export default function ResultView({ resultUrl, excelData, filename, onReset }: 
   const handleDownload = () => {
     if (!excelData || !filename) return;
     
-    const link = document.createElement('a');
-    link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelData}`;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const link = document.createElement('a');
+      link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelData}`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
   };
   
   return (
@@ -42,7 +46,7 @@ export default function ResultView({ resultUrl, excelData, filename, onReset }: 
         <div className="flex flex-col space-y-4">
           <h4 className="text-md font-medium">Insight Report Ready</h4>
           <p className="text-sm text-muted-foreground">
-            Your XLSX file contains valuable insights about client relationships and retention likelihood based on the document analysis.
+            Your XLSX file contains valuable insights about the document analysis.
           </p>
           
           <div className="flex flex-col space-y-2">
@@ -50,6 +54,7 @@ export default function ResultView({ resultUrl, excelData, filename, onReset }: 
               onClick={handleDownload}
               size="lg"
               className="w-full flex items-center justify-center"
+              disabled={!excelData || !filename}
             >
               <Download className="mr-2 h-5 w-5" />
               Download XLSX Report
